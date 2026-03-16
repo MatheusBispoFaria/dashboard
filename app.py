@@ -115,13 +115,16 @@ if df_prod is not None and not df_prod.empty:
     st.markdown("Análise de desempenho e consumo de recursos nos canteiros de obra.")
     
     # Filtro estrutural de mão de obra (mantido)
-    if 'tipo_insumo' in df_diarios.columns:
+    if df_diarios is not None and 'tipo_insumo' in df_diarios.columns:
         tipo_limpo = df_diarios['tipo_insumo'].astype(str).str.strip().str.upper()
         filtro_mo = tipo_limpo.str.contains('MÃO DE OBRA|MAO DE OBRA', na=False, regex=True)
         df_diarios_mo = df_diarios[filtro_mo].copy()
     else:
-        df_diarios_mo = df_diarios.copy()
-        st.error("Aviso: A coluna 'tipo_insumo' não foi encontrada. Os materiais não foram filtrados.")
+        df_diarios_mo = pd.DataFrame() if df_diarios is None else df_diarios.copy()
+        if df_diarios is None:
+            st.error("Aviso: Arquivo 'df_diarios.xlsx' não encontrado. Funcionalidades relacionadas aos diários estarão indisponíveis.")
+        else:
+            st.error("Aviso: A coluna 'tipo_insumo' não foi encontrada. Os materiais não foram filtrados.")
     
     st.write("")
     
@@ -315,11 +318,9 @@ if df_prod is not None and not df_prod.empty:
                 column_config={
                     "dia_semana": st.column_config.TextColumn("Dia da Semana"),
                     "Média": st.column_config.NumberColumn("Média (Com Outliers)", format="%.3f"),
-                    "Mediana": st.column_config.ProgressColumn(
+                    "Mediana": st.column_config.NumberColumn(
                         "Mediana (Ritmo Real)",
-                        format="%.3f",
-                        min_value=0,
-                        max_value=float(dia_semana_stats['Mediana'].max()) if not dia_semana_stats.empty else 1,
+                        format="%.3f"
                     ),
                     "Qtd_Lançamentos": st.column_config.NumberColumn("Qtd. de Lançamentos", format="%d")
                 }
