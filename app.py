@@ -90,6 +90,11 @@ def load_data():
 
 df_prod, df_diarios = load_data()
 
+# Função auxiliar para calcular Moda
+def get_mode(x):
+    m = x.mode()
+    return m.iloc[0] if not m.empty else np.nan
+
 # 4. Construção da Interface
 if df_prod is not None and not df_prod.empty:
     
@@ -101,11 +106,6 @@ if df_prod is not None and not df_prod.empty:
         tipo_limpo = df_diarios['tipo_insumo'].astype(str).str.strip().str.upper()
         filtro_mo = tipo_limpo.str.contains('MÃO DE OBRA|MAO DE OBRA', na=False, regex=True)
         df_diarios_mo = df_diarios[filtro_mo].copy()
-        
-        st.warning(
-            "**Filtro Estrutural Aplicado:** A base de lançamentos diários foi filtrada para exibir apenas insumos de **Mão de Obra**, "
-            "garantindo consistência na análise de produtividade (horas vs produção)."
-        )
     else:
         df_diarios_mo = df_diarios.copy()
         st.error("Aviso: A coluna 'tipo_insumo' não foi encontrada. Os materiais não foram filtrados.")
@@ -115,7 +115,6 @@ if df_prod is not None and not df_prod.empty:
     # --- FILTROS INTERATIVOS NA BARRA LATERAL ---
     st.sidebar.header("Filtros de Análise")
     
-    # Seleção da obra (mantido)
     obras = sorted(df_prod['OBRA'].dropna().unique())
     obra_sel = st.sidebar.selectbox("Selecione a Obra alvo:", obras)
     
@@ -128,7 +127,6 @@ if df_prod is not None and not df_prod.empty:
     if not df_p_obra.empty or not df_d_obra.empty:
         st.sidebar.markdown("### Filtros Avançados")
         
-        # Filtro de data (baseado nas duas fontes)
         datas_prod = df_p_obra['CREATED'].dropna()
         datas_diarios = df_d_obra['data'].dropna()
         if not datas_prod.empty or not datas_diarios.empty:
@@ -146,20 +144,17 @@ if df_prod is not None and not df_prod.empty:
                 )
                 if len(date_range) == 2:
                     start_date, end_date = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
-                    # Aplica nas duas bases
                     if not df_p_obra.empty:
                         df_p_obra = df_p_obra[(df_p_obra['CREATED'] >= start_date) & (df_p_obra['CREATED'] <= end_date)]
                     if not df_d_obra.empty:
                         df_d_obra = df_d_obra[(df_d_obra['data'] >= start_date) & (df_d_obra['data'] <= end_date)]
         
-        # Filtro de classe (apenas para produtividade)
         if not df_p_obra.empty and 'CLASSE_COMP' in df_p_obra.columns:
             classes = sorted(df_p_obra['CLASSE_COMP'].dropna().unique())
             if len(classes) > 0:
                 classes_sel = st.sidebar.multiselect("Classes de serviço", classes, default=classes)
                 df_p_obra = df_p_obra[df_p_obra['CLASSE_COMP'].isin(classes_sel)]
         
-        # Filtro de insumo (apenas para diários)
         if not df_d_obra.empty and 'insumo' in df_d_obra.columns:
             insumos = sorted(df_d_obra['insumo'].dropna().unique())
             if len(insumos) > 0:
@@ -168,7 +163,7 @@ if df_prod is not None and not df_prod.empty:
     else:
         st.sidebar.info("Nenhum dado disponível para esta obra.")
     
-    # --- MÉTRICAS PRINCIPAIS (após todos os filtros) ---
+    # --- MÉTRICAS PRINCIPAIS ---
     c1, c2, c3 = st.columns(3)
     ip_medio = df_p_obra['IP_D'].mean() if not df_p_obra.empty else 0
     meta_siurb = df_p_obra['COEF_SIURB'].mean() if not df_p_obra.empty else 0
@@ -180,31 +175,20 @@ if df_prod is not None and not df_prod.empty:
     
     st.divider()
     
-    # --- GRÁFICOS ANALÍTICOS (aprimorados) ---
+    # --- GRÁFICOS ANALÍTICOS ---
     col_a, col_b = st.columns(2)
     
     with col_a:
         st.subheader("Evolução da Produtividade (IP)")
         if not df_p_obra.empty:
-            # Paleta de cores moderna e mais contraste
             fig1 = px.line(
-                df_p_obra, 
-                x='CREATED', 
-                y='IP_D', 
-                color='CLASSE_COMP',
-                markers=True,
-                template="plotly_white",
-                color_discrete_sequence=px.colors.qualitative.Bold,  # cores vibrantes
+                df_p_obra, x='CREATED', y='IP_D', color='CLASSE_COMP', markers=True,
+                template="plotly_white", color_discrete_sequence=px.colors.qualitative.Bold,
                 labels={'CREATED': 'Data', 'IP_D': 'Índice de Produtividade', 'CLASSE_COMP': 'Classe'}
             )
             fig1.update_traces(line=dict(width=2.5), marker=dict(size=6))
-            fig1.update_layout(
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=40, r=20, t=30, b=40),
-                height=450,
-                hovermode="x unified",
-                title=None
-            )
+            fig1.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                               margin=dict(l=40, r=20, t=30, b=40), height=450, hovermode="x unified")
             st.plotly_chart(fig1, use_container_width=True)
         else:
             st.info("Sem dados de produtividade para os filtros selecionados.")
@@ -212,72 +196,91 @@ if df_prod is not None and not df_prod.empty:
     with col_b:
         st.subheader("Consumo de Mão de Obra (Horas)")
         if not df_d_obra.empty:
-            df_insumo = df_d_obra.groupby('insumo', as_index=False)['qntd'].sum()
-            df_insumo = df_insumo.sort_values('qntd', ascending=False)
-            
+            df_insumo = df_d_obra.groupby('insumo', as_index=False)['qntd'].sum().sort_values('qntd', ascending=False)
             fig2 = px.bar(
-                df_insumo, 
-                x='insumo', 
-                y='qntd',
-                color='insumo',
-                template="plotly_white",
-                color_discrete_sequence=px.colors.qualitative.Pastel,  # suave mas distinguível
-                labels={'insumo': '', 'qntd': 'Horas trabalhadas'}
+                df_insumo, x='insumo', y='qntd', color='insumo', template="plotly_white",
+                color_discrete_sequence=px.colors.qualitative.Pastel, labels={'insumo': '', 'qntd': 'Horas trabalhadas'}
             )
-            fig2.update_layout(
-                showlegend=False,
-                margin=dict(l=40, r=20, t=20, b=80),
-                height=450,
-                xaxis_tickangle=-45,
-                hovermode="x"
-            )
+            fig2.update_layout(showlegend=False, margin=dict(l=40, r=20, t=20, b=80), height=450, xaxis_tickangle=-45)
             fig2.update_traces(marker_line_width=0)
             st.plotly_chart(fig2, use_container_width=True)
         else:
             st.info("Sem dados de diários para os filtros selecionados.")
     
     st.divider()
-    
-    # --- TABELA DETALHADA ---
-    st.subheader("Lançamentos Diários (Apenas Mão de Obra)")
-    if not df_d_obra.empty:
+
+    # ==========================================
+    # --- NOVO BLOCO: INTELIGÊNCIA ANALÍTICA ---
+    # ==========================================
+    st.subheader("Inteligência Analítica e Consistência Global")
+    st.markdown("Comparativo de previsibilidade e variância de rendimento, fundamental para calibração de orçamento.")
+
+    # Criando abas para organizar o volume de informações matemáticas
+    aba1, aba2 = st.tabs(["📊 Comparativo por Obra (Consistência)", "📅 Sazonalidade (Dias da Semana)"])
+
+    with aba1:
+        st.markdown("**Diagnóstico de Obras:** Analisa todas as obras do banco para descobrir qual é a mais consistente. "
+                    "*(Obras com alto CV% são altamente instáveis e representam risco ao planejamento)*.")
+        
+        # Agrupamento de todas as obras originais (df_diarios_mo)
+        obra_stats = df_diarios_mo.dropna(subset=['nome_obra']).groupby('nome_obra')['ip_d'].agg(
+            Média='mean',
+            Mediana='median',
+            Moda=get_mode,
+            Desvio_Padrão='std'
+        ).reset_index()
+
+        # Cálculo do Coeficiente de Variação
+        obra_stats['CV (%)'] = (obra_stats['Desvio_Padrão'] / obra_stats['Média']) * 100
+        # Ordenando da mais produtiva (real) para a menor
+        obra_stats = obra_stats.sort_values('Mediana', ascending=False)
+
+        # Aplicando estilo na tabela para ficar legível e profissional
         st.dataframe(
-            df_d_obra.sort_values('data', ascending=False),
+            obra_stats.style.format({
+                'Média': '{:.3f}',
+                'Mediana': '{:.3f}',
+                'Moda': '{:.3f}',
+                'Desvio_Padrão': '{:.3f}',
+                'CV (%)': '{:.1f}%'
+            }).background_gradient(subset=['CV (%)'], cmap='Reds'), # Destaca os maiores riscos em vermelho
             use_container_width=True,
-            hide_index=True,
-            column_config={
-                "data": "Data",
-                "insumo": "Insumo",
-                "qntd": "Quantidade (h)",
-                "nome_obra": "Obra"
-            }
+            hide_index=True
         )
-    else:
-        st.info("Nenhum registro de diário para os filtros selecionados.")
-        
-    st.divider()
-    
-    # ==========================================
-    # --- CÓDIGO INSERIDO: RESUMO ESTATÍSTICO ---
-    # ==========================================
-    st.subheader("Resumo Estatístico das Variáveis (Base CSV)")
-    
-    try:
-        # Carregar os dados conforme o código enviado
-        df_csv = pd.read_excel('df_diarios.xlsx')
 
-        # Filtrar pelas métricas contínuas de desempenho
-        cols = ['qntd', 'qs', 'ip_d']
+    with aba2:
+        st.markdown("**Ritmo de Produção:** Evidencia em quais dias da semana ocorrem os maiores picos (ou gargalos) de produtividade e lançamentos atípicos.")
+        
+        df_d_sazonal = df_diarios_mo.copy()
+        
+        # Traduzindo dias da semana
+        dias_pt = {
+            'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
+            'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+        }
+        df_d_sazonal['dia_semana'] = df_d_sazonal['data'].dt.day_name().map(dias_pt)
 
-        # Calcular as medidas
-        tabela_resumo = df_csv[cols].agg(['mean', 'median', lambda x: x.mode().iloc[0]]).T
-        tabela_resumo.columns = ['Média', 'Mediana', 'Moda']
-        
-        # Exibir no dashboard em formato de tabela estilizada (substitui o print)
-        st.dataframe(tabela_resumo, use_container_width=True)
-        
-    except Exception as e:
-        st.warning(f"Atenção: Não foi possível calcular o resumo estatístico pois o arquivo CSV não foi encontrado ou falhou ao ler. Detalhes: {e}")
+        # Agrupamento sazonal
+        dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(
+            Média='mean',
+            Mediana='median',
+            Qtd_Lançamentos='count'
+        ).reset_index()
+
+        # Ordenando cronologicamente
+        ordem_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+        dia_semana_stats['dia_semana'] = pd.Categorical(dia_semana_stats['dia_semana'], categories=ordem_dias, ordered=True)
+        dia_semana_stats = dia_semana_stats.sort_values('dia_semana')
+
+        st.dataframe(
+            dia_semana_stats.style.format({
+                'Média': '{:.3f}',
+                'Mediana': '{:.3f}',
+                'Qtd_Lançamentos': '{:,.0f}'
+            }).bar(subset=['Mediana'], color='#5C6A79'), # Adiciona pequenas barras dentro da célula da Mediana
+            use_container_width=True,
+            hide_index=True
+        )
 
 else:
     st.info("Aguardando o carregamento dos dados para gerar o dashboard.")
