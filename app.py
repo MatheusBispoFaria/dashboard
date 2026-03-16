@@ -51,19 +51,16 @@ if df_diarios is not None and not df_diarios.empty:
     df_diarios = df_diarios[df_diarios['nome_obra'].isin(obras_validas)].copy()
 
 if df_prod is not None and not df_prod.empty:
-    # Removemos o filtro rigoroso aqui temporariamente para garantir que a base não esvazie
-    # Caso você tenha certeza dos nomes, reative: df_prod = df_prod[df_prod['OBRA'].isin(['OBRA_A', 'OBRA_B', 'OBRA_C'])].copy()
     pass 
 
 def get_mode(x):
     m = x.mode()
     return m.iloc[0] if not m.empty else np.nan
 
-# 4. Construção da Interface Principal (Fora do if bloqueante)
+# 4. Construção da Interface Principal
 st.title("Dashboard Integrado de Produtividade e Insumos")
 st.markdown("Análise de desempenho e consumo de recursos nos canteiros de obra.")
 
-# Garante que as variáveis existam mesmo se o Excel falhar
 df_diarios_mo = pd.DataFrame()
 df_d_obra = pd.DataFrame()
 df_p_obra = pd.DataFrame()
@@ -79,7 +76,6 @@ if df_diarios is not None and not df_diarios.empty:
 # --- FILTROS DA BARRA LATERAL ---
 st.sidebar.header("Filtros de Análise")
 
-# Tenta pegar as obras do CSV; se falhar, pega do Excel
 if df_prod is not None and not df_prod.empty and 'OBRA' in df_prod.columns:
     obras_disp = sorted(df_prod['OBRA'].dropna().unique())
 elif not df_diarios_mo.empty and 'nome_obra' in df_diarios_mo.columns:
@@ -101,7 +97,6 @@ if obras_disp:
     remover_outliers = st.sidebar.checkbox("📉 Remover Picos Irreais (Outliers)")
     st.sidebar.markdown("---")
 
-    # Filtro de Outliers IQR
     if remover_outliers and not df_p_obra.empty and 'IP_D' in df_p_obra.columns:
         Q1 = df_p_obra['IP_D'].quantile(0.25)
         Q3 = df_p_obra['IP_D'].quantile(0.75)
@@ -116,7 +111,6 @@ if obras_disp:
     meta_siurb = df_p_obra['COEF_SIURB'].mean() if not df_p_obra.empty and 'COEF_SIURB' in df_p_obra.columns else 0
     qtd_registros = len(df_d_obra) if not df_d_obra.empty else 0
     
-    # AJUSTE: Formatação para 2 casas decimais (:.2f)
     c1.metric("Índice de Produtividade (IP) Médio", f"{ip_medio:.2f}")
     c2.metric("Meta do Orçamento (SIURB)", f"{meta_siurb:.2f}")
     c3.metric("Registros Diários (Mão de Obra)", qtd_registros)
@@ -125,12 +119,31 @@ if obras_disp:
     # --- GRÁFICOS ---
     col_a, col_b = st.columns(2)
     with col_a:
-        st.subheader("Evolução da Produtividade (IP)")
+        # ATUALIZAÇÃO: Título ajustado para refletir a nova visualização
+        st.subheader("Distribuição da Produtividade (Boxplot)")
         if not df_p_obra.empty and 'IP_D' in df_p_obra.columns:
-            fig1 = px.line(df_p_obra, x='CREATED', y='IP_D', color='CLASSE_COMP', markers=True, template="plotly_white")
+            
+            # ATUALIZAÇÃO: Trocando px.line por px.box
+            fig1 = px.box(
+                df_p_obra, 
+                x='CLASSE_COMP', 
+                y='IP_D', 
+                color='CLASSE_COMP', 
+                template="plotly_white",
+                points="outliers", # Desenha os picos anormais como pontos isolados fora da caixa
+                labels={'CLASSE_COMP': 'Classe de Serviço', 'IP_D': 'Índice de Produtividade (IP)'}
+            )
+            
+            # Ajuste de layout para o Boxplot ficar elegante
+            fig1.update_layout(
+                showlegend=False, # Removemos a legenda lateral pois os eixos já explicam
+                margin=dict(l=40, r=20, t=30, b=80), 
+                height=450, 
+                xaxis_tickangle=-45 # Inclina os nomes dos serviços para caberem na tela
+            )
             st.plotly_chart(fig1, use_container_width=True)
         else:
-            st.info("Sem dados de produtividade (CSV) para gerar o gráfico de linhas.")
+            st.info("Sem dados de produtividade (CSV) para gerar o Boxplot.")
             
     with col_b:
         st.subheader("Consumo de Mão de Obra (Horas)")
@@ -161,7 +174,6 @@ if obras_disp:
             obra_stats['CV (%)'] = (obra_stats['Desvio_Padrão'] / obra_stats['Média']) * 100
             obra_stats = obra_stats.sort_values('Mediana', ascending=False)
             
-            # AJUSTE: Aplicando formatação nativa de 2 casas numéricas ("%.2f") e ("%.2f %%") para CV
             st.dataframe(
                 obra_stats,
                 use_container_width=True,
@@ -193,7 +205,6 @@ if obras_disp:
                     Qtd_Lançamentos='count'
                 ).reset_index()
                 
-                # AJUSTE: Formatação de 2 casas ("%.2f") e "%d" para contagem inteira
                 st.dataframe(
                     dia_semana_stats,
                     use_container_width=True,
