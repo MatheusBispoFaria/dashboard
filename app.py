@@ -172,7 +172,7 @@ if obras_disp:
 
     # --- INTELIGÊNCIA ANALÍTICA ---
     st.subheader("Inteligência Analítica e Consistência Global")
-    aba1, aba2 = st.tabs(["📊 Comparativo por Obra", "📅 Sazonalidade (Dias da Semana)"])
+    aba1, aba2 = st.tabs(["(Consistência) Comparativo por Obra", "Dias da Semana"])
 
     with aba1:
         if not df_diarios_mo.empty and 'ip_d' in df_diarios_mo.columns:
