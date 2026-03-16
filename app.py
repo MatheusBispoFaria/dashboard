@@ -116,8 +116,9 @@ if obras_disp:
     meta_siurb = df_p_obra['COEF_SIURB'].mean() if not df_p_obra.empty and 'COEF_SIURB' in df_p_obra.columns else 0
     qtd_registros = len(df_d_obra) if not df_d_obra.empty else 0
     
-    c1.metric("Índice de Produtividade (IP) Médio", f"{ip_medio:.3f}")
-    c2.metric("Meta do Orçamento (SIURB)", f"{meta_siurb:.3f}")
+    # AJUSTE: Formatação para 2 casas decimais (:.2f)
+    c1.metric("Índice de Produtividade (IP) Médio", f"{ip_medio:.2f}")
+    c2.metric("Meta do Orçamento (SIURB)", f"{meta_siurb:.2f}")
     c3.metric("Registros Diários (Mão de Obra)", qtd_registros)
     st.divider()
 
@@ -156,9 +157,25 @@ if obras_disp:
                 Desvio_Padrão='std',
                 Amplitude=lambda x: x.max() - x.min()
             ).reset_index()
+            
             obra_stats['CV (%)'] = (obra_stats['Desvio_Padrão'] / obra_stats['Média']) * 100
             obra_stats = obra_stats.sort_values('Mediana', ascending=False)
-            st.dataframe(obra_stats, use_container_width=True, hide_index=True)
+            
+            # AJUSTE: Aplicando formatação nativa de 2 casas numéricas ("%.2f") e ("%.2f %%") para CV
+            st.dataframe(
+                obra_stats,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Média": st.column_config.NumberColumn(format="%.2f"),
+                    "Mediana": st.column_config.NumberColumn(format="%.2f"),
+                    "Moda": st.column_config.NumberColumn(format="%.2f"),
+                    "Variância": st.column_config.NumberColumn(format="%.2f"),
+                    "Desvio_Padrão": st.column_config.NumberColumn(format="%.2f"),
+                    "Amplitude": st.column_config.NumberColumn(format="%.2f"),
+                    "CV (%)": st.column_config.NumberColumn("CV (%) - Risco", format="%.2f %%")
+                }
+            )
         else:
             st.info("Dados de Diários insuficientes para o Comparativo.")
 
@@ -169,8 +186,24 @@ if obras_disp:
             if not df_d_sazonal.empty:
                 dias_pt = {'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta', 'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'}
                 df_d_sazonal['dia_semana'] = df_d_sazonal['data'].dt.day_name().map(dias_pt)
-                dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(Média='mean', Mediana='median', Qtd_Lançamentos='count').reset_index()
-                st.dataframe(dia_semana_stats, use_container_width=True, hide_index=True)
+                
+                dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(
+                    Média='mean', 
+                    Mediana='median', 
+                    Qtd_Lançamentos='count'
+                ).reset_index()
+                
+                # AJUSTE: Formatação de 2 casas ("%.2f") e "%d" para contagem inteira
+                st.dataframe(
+                    dia_semana_stats,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Média": st.column_config.NumberColumn(format="%.2f"),
+                        "Mediana": st.column_config.NumberColumn(format="%.2f"),
+                        "Qtd_Lançamentos": st.column_config.NumberColumn(format="%d")
+                    }
+                )
             else:
                 st.warning(f"Sem lançamentos para a {obra_alvo_sazonal}.")
         else:
