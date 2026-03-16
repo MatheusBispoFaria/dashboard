@@ -249,38 +249,49 @@ if df_prod is not None and not df_prod.empty:
         )
 
     with aba2:
-        st.markdown("**Ritmo de Produção:** Evidencia em quais dias da semana ocorrem os maiores picos (ou gargalos) de produtividade e lançamentos atípicos.")
+        # Título dinâmico para confirmar qual obra está sendo analisada
+        st.markdown(f"**Ritmo de Produção ({nome_obra_padrao}):** Evidencia em quais dias da semana ocorrem os maiores picos (ou gargalos) de produtividade e lançamentos atípicos na obra selecionada.")
         
-        df_d_sazonal = df_diarios_mo.copy()
-        
-        # Traduzindo dias da semana
-        dias_pt = {
-            'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
-            'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-        }
-        df_d_sazonal['dia_semana'] = df_d_sazonal['data'].dt.day_name().map(dias_pt)
+        # O ACERTO: Usar df_d_obra (dados filtrados) em vez de df_diarios_mo (dados globais)
+        if not df_d_obra.empty:
+            df_d_sazonal = df_d_obra.copy()
+            
+            # Traduzindo dias da semana
+            dias_pt = {
+                'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
+                'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+            }
+            df_d_sazonal['dia_semana'] = df_d_sazonal['data'].dt.day_name().map(dias_pt)
 
-        # Agrupamento sazonal
-        dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(
-            Média='mean',
-            Mediana='median',
-            Qtd_Lançamentos='count'
-        ).reset_index()
+            # Agrupamento sazonal (Agora exclusivo da obra selecionada)
+            dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(
+                Média='mean',
+                Mediana='median',
+                Qtd_Lançamentos='count'
+            ).reset_index()
 
-        # Ordenando cronologicamente
-        ordem_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
-        dia_semana_stats['dia_semana'] = pd.Categorical(dia_semana_stats['dia_semana'], categories=ordem_dias, ordered=True)
-        dia_semana_stats = dia_semana_stats.sort_values('dia_semana')
+            # Ordenando cronologicamente
+            ordem_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+            dia_semana_stats['dia_semana'] = pd.Categorical(dia_semana_stats['dia_semana'], categories=ordem_dias, ordered=True)
+            dia_semana_stats = dia_semana_stats.sort_values('dia_semana')
 
-        st.dataframe(
-            dia_semana_stats.style.format({
-                'Média': '{:.3f}',
-                'Mediana': '{:.3f}',
-                'Qtd_Lançamentos': '{:,.0f}'
-            }).bar(subset=['Mediana'], color='#5C6A79'), # Adiciona pequenas barras dentro da célula da Mediana
-            use_container_width=True,
-            hide_index=True
-        )
-
-else:
-    st.info("Aguardando o carregamento dos dados para gerar o dashboard.")
+            # Renderizando a tabela formatada nativa do Streamlit (Solução Opção 2 para evitar o erro do matplotlib)
+            st.dataframe(
+                dia_semana_stats,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "dia_semana": st.column_config.TextColumn("Dia da Semana"),
+                    "Média": st.column_config.NumberColumn("Média (Com Outliers)", format="%.3f"),
+                    # Aqui adicionamos a barra de progresso visual nativa do Streamlit na Mediana!
+                    "Mediana": st.column_config.ProgressColumn(
+                        "Mediana (Ritmo Real)",
+                        format="%.3f",
+                        min_value=0,
+                        max_value=float(dia_semana_stats['Mediana'].max()) if not dia_semana_stats.empty else 1,
+                    ),
+                    "Qtd_Lançamentos": st.column_config.NumberColumn("Qtd. de Lançamentos", format="%d")
+                }
+            )
+        else:
+            st.info(f"Não há dados diários suficientes para analisar a sazonalidade da {nome_obra_padrao} neste período.")
