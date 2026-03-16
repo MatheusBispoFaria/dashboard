@@ -264,7 +264,7 @@ if df_prod is not None and not df_prod.empty:
     
     try:
         # Carregar os dados conforme o código enviado
-        df_csv = pd.read_csv('df_diarios.xlsx - Sheet1.csv')
+        df_csv = pd.read_csv('df_diarios.xlsx')
 
         # Filtrar pelas métricas contínuas de desempenho
         cols = ['qntd', 'qs', 'ip_d']
