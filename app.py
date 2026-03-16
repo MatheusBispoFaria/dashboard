@@ -254,5 +254,30 @@ if df_prod is not None and not df_prod.empty:
         )
     else:
         st.info("Nenhum registro de diário para os filtros selecionados.")
+        
+    st.divider()
+    
+    # ==========================================
+    # --- CÓDIGO INSERIDO: RESUMO ESTATÍSTICO ---
+    # ==========================================
+    st.subheader("Resumo Estatístico das Variáveis (Base CSV)")
+    
+    try:
+        # Carregar os dados conforme o código enviado
+        df_csv = pd.read_csv('df_diarios.xlsx - Sheet1.csv')
+
+        # Filtrar pelas métricas contínuas de desempenho
+        cols = ['qntd', 'qs', 'ip_d']
+
+        # Calcular as medidas
+        tabela_resumo = df_csv[cols].agg(['mean', 'median', lambda x: x.mode().iloc[0]]).T
+        tabela_resumo.columns = ['Média', 'Mediana', 'Moda']
+        
+        # Exibir no dashboard em formato de tabela estilizada (substitui o print)
+        st.dataframe(tabela_resumo, use_container_width=True)
+        
+    except Exception as e:
+        st.warning(f"Atenção: Não foi possível calcular o resumo estatístico pois o arquivo CSV não foi encontrado ou falhou ao ler. Detalhes: {e}")
+
 else:
     st.info("Aguardando o carregamento dos dados para gerar o dashboard.")
