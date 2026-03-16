@@ -149,7 +149,12 @@ if obras_disp:
     with aba1:
         if not df_diarios_mo.empty and 'ip_d' in df_diarios_mo.columns:
             obra_stats = df_diarios_mo.dropna(subset=['nome_obra']).groupby('nome_obra')['ip_d'].agg(
-                Média='mean', Mediana='median', Moda=get_mode, Desvio_Padrão='std'
+                Média='mean',
+                Mediana='median',
+                Moda=get_mode,
+                Variância='var',
+                Desvio_Padrão='std',
+                Amplitude=lambda x: x.max() - x.min()
             ).reset_index()
             obra_stats['CV (%)'] = (obra_stats['Desvio_Padrão'] / obra_stats['Média']) * 100
             obra_stats = obra_stats.sort_values('Mediana', ascending=False)
