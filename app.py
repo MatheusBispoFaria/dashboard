@@ -90,6 +90,19 @@ def load_data():
 
 df_prod, df_diarios = load_data()
 
+# Definimos apenas os canteiros reais. Qualquer coisa fora disso (Auto, Aer, D) é descartada.
+obras_validas = ['Obra A', 'Obra B', 'Obra C']
+
+if df_diarios is not None and not df_diarios.empty:
+    # Filtra o dataframe para conter apenas as obras da lista acima
+    df_diarios = df_diarios[df_diarios['nome_obra'].isin(obras_validas)].copy()
+
+if df_prod is not None and not df_prod.empty:
+    # Como no CSV da produtividade o nome original está com underline (OBRA_A), 
+    # garantimos que o filtro também limpe a base de IP_D.
+    obras_validas_prod = ['OBRA_A', 'OBRA_B', 'OBRA_C']
+    df_prod = df_prod[df_prod['OBRA'].isin(obras_validas_prod)].copy()
+
 # Função auxiliar para calcular Moda
 def get_mode(x):
     m = x.mode()
@@ -216,7 +229,7 @@ if df_prod is not None and not df_prod.empty:
     st.markdown("Comparativo de previsibilidade e variância de rendimento, fundamental para calibração de orçamento.")
 
     # Criando abas para organizar o volume de informações matemáticas
-    aba1, aba2 = st.tabs(["📊 Comparativo por Obra (Consistência)", "📅 Sazonalidade (Dias da Semana)"])
+    aba1, aba2 = st.tabs(["Comparativo por Obra (Consistência)", "Sazonalidade (Dias da Semana)"])
 
     with aba1:
         st.markdown("**Diagnóstico de Obras:** Analisa todas as obras do banco para descobrir qual é a mais consistente. "
@@ -249,13 +262,19 @@ if df_prod is not None and not df_prod.empty:
         )
 
     with aba2:
-        # Título dinâmico para confirmar qual obra está sendo analisada
-        st.markdown(f"**Ritmo de Produção ({nome_obra_padrao}):** Evidencia em quais dias da semana ocorrem os maiores picos (ou gargalos) de produtividade e lançamentos atípicos na obra selecionada.")
+        st.markdown("**Ritmo de Produção:** Evidencia em quais dias da semana ocorrem os maiores picos (ou gargalos) de produtividade.")
         
-        # O ACERTO: Usar df_d_obra (dados filtrados) em vez de df_diarios_mo (dados globais)
-        if not df_d_obra.empty:
-            df_d_sazonal = df_d_obra.copy()
-            
+        # Cria botões horizontais rápidos e intuitivos para selecionar a obra apenas para esta aba
+        obra_alvo_sazonal = st.radio(
+            "Selecione a obra para visualizar a Sazonalidade Semanal:",
+            options=['Obra A', 'Obra B', 'Obra C'],
+            horizontal=True
+        )
+        
+        # Filtra o banco global (já limpo de Mão de Obra) apenas para a obra que você clicou no botão
+        df_d_sazonal = df_diarios_mo[df_diarios_mo['nome_obra'] == obra_alvo_sazonal].copy()
+        
+        if not df_d_sazonal.empty:
             # Traduzindo dias da semana
             dias_pt = {
                 'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
@@ -263,19 +282,19 @@ if df_prod is not None and not df_prod.empty:
             }
             df_d_sazonal['dia_semana'] = df_d_sazonal['data'].dt.day_name().map(dias_pt)
 
-            # Agrupamento sazonal (Agora exclusivo da obra selecionada)
+            # Agrupamento sazonal exato da obra escolhida
             dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(
                 Média='mean',
                 Mediana='median',
                 Qtd_Lançamentos='count'
             ).reset_index()
 
-            # Ordenando cronologicamente
+            # Ordenando cronologicamente de Segunda a Domingo
             ordem_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
             dia_semana_stats['dia_semana'] = pd.Categorical(dia_semana_stats['dia_semana'], categories=ordem_dias, ordered=True)
             dia_semana_stats = dia_semana_stats.sort_values('dia_semana')
 
-            # Renderizando a tabela formatada nativa do Streamlit (Solução Opção 2 para evitar o erro do matplotlib)
+            # Renderizando a tabela formatada
             st.dataframe(
                 dia_semana_stats,
                 use_container_width=True,
@@ -283,7 +302,6 @@ if df_prod is not None and not df_prod.empty:
                 column_config={
                     "dia_semana": st.column_config.TextColumn("Dia da Semana"),
                     "Média": st.column_config.NumberColumn("Média (Com Outliers)", format="%.3f"),
-                    # Aqui adicionamos a barra de progresso visual nativa do Streamlit na Mediana!
                     "Mediana": st.column_config.ProgressColumn(
                         "Mediana (Ritmo Real)",
                         format="%.3f",
@@ -294,4 +312,4 @@ if df_prod is not None and not df_prod.empty:
                 }
             )
         else:
-            st.info(f"Não há dados diários suficientes para analisar a sazonalidade da {nome_obra_padrao} neste período.")
+            st.warning(f"Não há lançamentos de Mão de Obra suficientes para calcular a sazonalidade da {obra_alvo_sazonal}.")
