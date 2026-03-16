@@ -90,16 +90,16 @@ def load_data():
 
 df_prod, df_diarios = load_data()
 
+# ==========================================
+# SANITIZAÇÃO DE DADOS (ETL)
+# ==========================================
 # Definimos apenas os canteiros reais. Qualquer coisa fora disso (Auto, Aer, D) é descartada.
 obras_validas = ['Obra A', 'Obra B', 'Obra C']
 
 if df_diarios is not None and not df_diarios.empty:
-    # Filtra o dataframe para conter apenas as obras da lista acima
     df_diarios = df_diarios[df_diarios['nome_obra'].isin(obras_validas)].copy()
 
 if df_prod is not None and not df_prod.empty:
-    # Como no CSV da produtividade o nome original está com underline (OBRA_A), 
-    # garantimos que o filtro também limpe a base de IP_D.
     obras_validas_prod = ['OBRA_A', 'OBRA_B', 'OBRA_C']
     df_prod = df_prod[df_prod['OBRA'].isin(obras_validas_prod)].copy()
 
@@ -136,7 +136,13 @@ if df_prod is not None and not df_prod.empty:
     nome_obra_padrao = obra_sel.replace('_', ' ').title()
     df_d_obra = df_diarios_mo[df_diarios_mo['nome_obra'] == nome_obra_padrao]
     
-    # Filtros adicionais (aparecem somente se houver dados)
+    # NOVO: Filtro Estatístico de Outliers
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Auditoria de Dados")
+    remover_outliers = st.sidebar.checkbox("📉 Remover Picos Irreais (Outliers)", help="Ative para aplicar o filtro estatístico IQR e remover picos causados por atraso no apontamento de horas.")
+    st.sidebar.markdown("---")
+
+    # Filtros adicionais
     if not df_p_obra.empty or not df_d_obra.empty:
         st.sidebar.markdown("### Filtros Avançados")
         
@@ -176,6 +182,18 @@ if df_prod is not None and not df_prod.empty:
     else:
         st.sidebar.info("Nenhum dado disponível para esta obra.")
     
+    # APLICAÇÃO DO FILTRO DE OUTLIERS NA PRODUTIVIDADE
+    if remover_outliers and not df_p_obra.empty:
+        # Método Estatístico: IQR (Interquartile Range)
+        Q1 = df_p_obra['IP_D'].quantile(0.25)
+        Q3 = df_p_obra['IP_D'].quantile(0.75)
+        IQR = Q3 - Q1
+        limite_superior = Q3 + 1.5 * IQR
+        
+        # Filtra a base cortando os picos matematicamente impossíveis
+        df_p_obra = df_p_obra[df_p_obra['IP_D'] <= limite_superior]
+        st.warning(f"⚠️ **Filtro Ativo:** Valores de produtividade (IP) maiores que **{limite_superior:.2f}** foram classificados como ruído e removidos do gráfico.")
+
     # --- MÉTRICAS PRINCIPAIS ---
     c1, c2, c3 = st.columns(3)
     ip_medio = df_p_obra['IP_D'].mean() if not df_p_obra.empty else 0
@@ -223,19 +241,18 @@ if df_prod is not None and not df_prod.empty:
     st.divider()
 
     # ==========================================
-    # --- NOVO BLOCO: INTELIGÊNCIA ANALÍTICA ---
+    # --- BLOCO: INTELIGÊNCIA ANALÍTICA ---
     # ==========================================
     st.subheader("Inteligência Analítica e Consistência Global")
     st.markdown("Comparativo de previsibilidade e variância de rendimento, fundamental para calibração de orçamento.")
 
-    # Criando abas para organizar o volume de informações matemáticas
-    aba1, aba2 = st.tabs(["Comparativo por Obra (Consistência)", "Sazonalidade (Dias da Semana)"])
+    aba1, aba2 = st.tabs(["📊 Comparativo por Obra (Consistência)", "📅 Sazonalidade (Dias da Semana)"])
 
     with aba1:
         st.markdown("**Diagnóstico de Obras:** Analisa todas as obras do banco para descobrir qual é a mais consistente. "
                     "*(Obras com alto CV% são altamente instáveis e representam risco ao planejamento)*.")
         
-        # Agrupamento de todas as obras originais (df_diarios_mo)
+        # Agrupamento das obras válidas
         obra_stats = df_diarios_mo.dropna(subset=['nome_obra']).groupby('nome_obra')['ip_d'].agg(
             Média='mean',
             Mediana='median',
@@ -245,56 +262,52 @@ if df_prod is not None and not df_prod.empty:
 
         # Cálculo do Coeficiente de Variação
         obra_stats['CV (%)'] = (obra_stats['Desvio_Padrão'] / obra_stats['Média']) * 100
-        # Ordenando da mais produtiva (real) para a menor
         obra_stats = obra_stats.sort_values('Mediana', ascending=False)
 
-        # Aplicando estilo na tabela para ficar legível e profissional
+        # SOLUÇÃO DO CRASH: Usando formatação nativa do Streamlit (sem dependência do Matplotlib)
         st.dataframe(
-            obra_stats.style.format({
-                'Média': '{:.3f}',
-                'Mediana': '{:.3f}',
-                'Moda': '{:.3f}',
-                'Desvio_Padrão': '{:.3f}',
-                'CV (%)': '{:.1f}%'
-            }).background_gradient(subset=['CV (%)'], cmap='Reds'), # Destaca os maiores riscos em vermelho
+            obra_stats,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "nome_obra": st.column_config.TextColumn("Obra"),
+                "Média": st.column_config.NumberColumn("Média", format="%.3f"),
+                "Mediana": st.column_config.NumberColumn("Mediana", format="%.3f"),
+                "Moda": st.column_config.NumberColumn("Moda", format="%.3f"),
+                "Desvio_Padrão": st.column_config.NumberColumn("Desvio Padrão", format="%.3f"),
+                "CV (%)": st.column_config.NumberColumn("CV (%) - Risco", format="%.1f %%")
+            }
         )
 
     with aba2:
         st.markdown("**Ritmo de Produção:** Evidencia em quais dias da semana ocorrem os maiores picos (ou gargalos) de produtividade.")
         
-        # Cria botões horizontais rápidos e intuitivos para selecionar a obra apenas para esta aba
+        # Filtro exclusivo de obras limpas (A, B, C)
         obra_alvo_sazonal = st.radio(
-            "Selecione a obra para visualizar a Sazonalidade Semanal:",
+            "📍 Selecione a obra para visualizar a Sazonalidade Semanal:",
             options=['Obra A', 'Obra B', 'Obra C'],
             horizontal=True
         )
         
-        # Filtra o banco global (já limpo de Mão de Obra) apenas para a obra que você clicou no botão
         df_d_sazonal = df_diarios_mo[df_diarios_mo['nome_obra'] == obra_alvo_sazonal].copy()
         
         if not df_d_sazonal.empty:
-            # Traduzindo dias da semana
             dias_pt = {
                 'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira', 'Wednesday': 'Quarta-feira',
                 'Thursday': 'Quinta-feira', 'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
             }
             df_d_sazonal['dia_semana'] = df_d_sazonal['data'].dt.day_name().map(dias_pt)
 
-            # Agrupamento sazonal exato da obra escolhida
             dia_semana_stats = df_d_sazonal.groupby('dia_semana')['ip_d'].agg(
                 Média='mean',
                 Mediana='median',
                 Qtd_Lançamentos='count'
             ).reset_index()
 
-            # Ordenando cronologicamente de Segunda a Domingo
             ordem_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
             dia_semana_stats['dia_semana'] = pd.Categorical(dia_semana_stats['dia_semana'], categories=ordem_dias, ordered=True)
             dia_semana_stats = dia_semana_stats.sort_values('dia_semana')
 
-            # Renderizando a tabela formatada
             st.dataframe(
                 dia_semana_stats,
                 use_container_width=True,
@@ -313,3 +326,6 @@ if df_prod is not None and not df_prod.empty:
             )
         else:
             st.warning(f"Não há lançamentos de Mão de Obra suficientes para calcular a sazonalidade da {obra_alvo_sazonal}.")
+
+else:
+    st.info("Aguardando o carregamento dos dados para gerar o dashboard.")
