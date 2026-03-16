@@ -7,15 +7,30 @@ from datetime import datetime
 # 1. Configuração da Página
 st.set_page_config(page_title="Dashboard Obras - Final", layout="wide", initial_sidebar_state="expanded")
 
-# 2. Injeção de CSS Customizado
+# 2. Injeção de CSS Customizado (Responsivo Light/Dark Mode)
 custom_css = """
 <style>
-    .stApp { background-color: #F4F6F9; }
-    div[data-testid="metric-container"] { background-color: #FFFFFF; border: 1px solid #E0E6ED; padding: 20px 25px; border-radius: 12px; box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.05); }
-    div[data-testid="stMetricLabel"] { color: #5C6A79; font-weight: 600; font-size: 0.9rem; }
-    div[data-testid="stMetricValue"] { color: #1E293B; font-size: 2rem; font-weight: 700; }
-    .stPlotlyChart { border-radius: 12px; background-color: #FFFFFF; padding: 10px; box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.03); }
-    section[data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E0E6ED; }
+    /* Usando variáveis nativas (var) para adaptar automaticamente ao tema claro ou escuro */
+    div[data-testid="metric-container"] { 
+        background-color: var(--secondary-background-color); 
+        border: 1px solid rgba(128, 128, 128, 0.2); 
+        padding: 20px 25px; 
+        border-radius: 12px; 
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1); 
+        transition: transform 0.2s ease;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+    }
+    div[data-testid="stMetricLabel"] { font-weight: 600; font-size: 0.9rem; }
+    div[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 700; }
+    
+    .stPlotlyChart { 
+        border-radius: 12px; 
+        background-color: var(--secondary-background-color); 
+        padding: 10px; 
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1); 
+    }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -119,29 +134,26 @@ if obras_disp:
     # --- GRÁFICOS ---
     col_a, col_b = st.columns(2)
     with col_a:
-        # ATUALIZAÇÃO: Título ajustado para refletir a nova visualização
         st.subheader("Distribuição da Produtividade (Boxplot)")
         if not df_p_obra.empty and 'IP_D' in df_p_obra.columns:
-            
-            # ATUALIZAÇÃO: Trocando px.line por px.box
+            # ATUALIZAÇÃO: template="plotly_white" foi removido para herdar o Dark Mode
             fig1 = px.box(
                 df_p_obra, 
                 x='CLASSE_COMP', 
                 y='IP_D', 
                 color='CLASSE_COMP', 
-                template="plotly_white",
-                points="outliers", # Desenha os picos anormais como pontos isolados fora da caixa
+                points="outliers", 
                 labels={'CLASSE_COMP': 'Classe de Serviço', 'IP_D': 'Índice de Produtividade (IP)'}
             )
             
-            # Ajuste de layout para o Boxplot ficar elegante
             fig1.update_layout(
-                showlegend=False, # Removemos a legenda lateral pois os eixos já explicam
+                showlegend=False, 
                 margin=dict(l=40, r=20, t=30, b=80), 
                 height=450, 
-                xaxis_tickangle=-45 # Inclina os nomes dos serviços para caberem na tela
+                xaxis_tickangle=-45 
             )
-            st.plotly_chart(fig1, use_container_width=True)
+            # theme="streamlit" faz com que o Plotly respeite o botão de claro/escuro nativo
+            st.plotly_chart(fig1, use_container_width=True, theme="streamlit")
         else:
             st.info("Sem dados de produtividade (CSV) para gerar o Boxplot.")
             
@@ -149,9 +161,11 @@ if obras_disp:
         st.subheader("Consumo de Mão de Obra (Horas)")
         if not df_d_obra.empty and 'insumo' in df_d_obra.columns and 'qntd' in df_d_obra.columns:
             df_insumo = df_d_obra.groupby('insumo', as_index=False)['qntd'].sum().sort_values('qntd', ascending=False)
-            fig2 = px.bar(df_insumo, x='insumo', y='qntd', color='insumo', template="plotly_white")
+            
+            # ATUALIZAÇÃO: template="plotly_white" removido
+            fig2 = px.bar(df_insumo, x='insumo', y='qntd', color='insumo')
             fig2.update_layout(showlegend=False, xaxis_tickangle=-45)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, use_container_width=True, theme="streamlit")
         else:
             st.info("Sem dados de diários (Excel) para gerar o gráfico de barras.")
     st.divider()
