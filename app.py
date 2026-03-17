@@ -265,49 +265,4 @@ if pagina_selecionada == "Dashboard Executivo":
     else:
         st.error("ERRO: Nenhuma obra válida encontrada nos bancos de dados para iniciar o painel.")
 
-
-# ==========================================
-# TELA 2: RELATÓRIO ANALÍTICO
-# ==========================================
-elif pagina_selecionada == "Relatório Analítico":
-
-    st.title("Relatório Analítico de Produtividade")
-    st.markdown("Respostas formais baseadas nas premissas de estatística descritiva e variância dos dados da construtora.")
     st.divider()
-
-    st.subheader("A. Há diferença de produtividade entre as obras?")
-    st.write("""
-    **Sim, as diferenças são estatística e visualmente significativas.** Através das análises de quartis (Boxplot) e das medidas de tendência central, a **Obra B** aparenta ser a mais produtiva e consistente. Seu Intervalo Interquartil (IQR) descola do eixo zero. 
-    Em contrapartida, as **Obras A e C** aparentam ser as menos produtivas no canteiro diário; suas distribuições estão "esmagadas" contra o limite inferior, com intensa presença de dias zerados. 
-
-    **Fatores Contextuais:** Essa diferença não indica necessariamente ineficiência da mão de obra, mas sim forte indício de falhas no processo de apontamento (subnotificação diária), com encarregados acumulando lançamentos para uma única data.
-    """)
-
-    st.divider()
-
-    st.subheader("B. Há diferença de produtividade entre serviços ou descrições da base?")
-    st.write("""
-    **Sim, constatou-se grande heterogeneidade ao analisar a coluna qualitativa 'Classe de Serviço' (CLASSE_COMP).**
-    * **Maior Produtividade Consistente:** Serviços de natureza repetitiva, como *Alvenaria* e *Fundações*, apresentam caixas estatísticas robustas.
-    * **Menor Produtividade (Alta Oscilação):** Serviços complexos, como *Instalações Elétricas*.
-    * **Fatores Operacionais:** Explica-se pelo "Efeito de Ciclo Longo". Serviços de infraestrutura/alvenaria geram medições diárias tangíveis (m²). Instalações demandam semanas de esforço oculto que só são registradas no fechamento do circuito, concentrando o apontamento em picos extremos.
-    """)
-
-    st.divider()
-
-    st.subheader("C. Como está a relação entre Média e Mediana nos grupos analisados?")
-    st.write("""
-    **A relação encontra-se fortemente afastada, configurando Assimetria Positiva severa.**
-    A Média é expressivamente maior que a Mediana na maioria das análises. Esse afastamento é a prova cabal da presença de **valores extremos e outliers irreais** (pontos muito acima do limite superior do Boxplot). 
-    * **O que isso indica:** A Média global é um indicador "mentiroso" para esta base de dados. Utilizá-la no orçamento superestimará a capacidade da equipe. A Mediana é o único indicador seguro, pois reflete o ritmo de fato vivenciado 50% do tempo.
-    """)
-
-    st.divider()
-
-    st.subheader("D. Quais grupos apresentam produtividade mais e menos previsível?")
-    st.write("""
-    Com base na Amplitude e no Coeficiente de Variação (CV%):
-    * **Mais Previsível (Estável):** A **Obra B** possui os menores índices de dispersão.
-    * **Menos Previsível (Instável):** A **Obra A** possui uma variabilidade extrema (CV% altíssimo).
-    * **Impacto na Gestão:** Obras imprevisíveis como a Obra A impossibilitam logísticas *Just-in-Time*. A gestão é forçada a trabalhar com altos estoques preventivos (capital imobilizado) e imensas folgas no cronograma para mitigar o risco de não entrega no dia esperado.
-    """)
