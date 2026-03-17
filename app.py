@@ -117,26 +117,26 @@ if pagina_selecionada == "Dashboard Executivo":
         obras_disp = []
 
     if obras_disp:
-        obra_sel = st.sidebar.selectbox("Selecione a Obra alvo:", obras_disp)
-        nome_obra_padrao = obra_sel.replace('_', ' ').title()
+        # 1. Inserindo a opção 'Todas as Obras' no início da lista
+        opcoes_filtro = ["Todas as Obras"] + obras_disp
+        obra_sel = st.sidebar.selectbox("Selecione a Obra alvo:", opcoes_filtro)
         
-        if df_prod is not None and not df_prod.empty:
-            df_p_obra = df_prod[df_prod['OBRA'] == obra_sel]
-        if not df_diarios_mo.empty:
-            df_d_obra = df_diarios_mo[df_diarios_mo['nome_obra'] == nome_obra_padrao]
+        # 2. Lógica de filtro condicional
+        if obra_sel == "Todas as Obras":
+            # Se for "Todas as Obras", passamos o dataframe inteiro (cópia)
+            if df_prod is not None and not df_prod.empty:
+                df_p_obra = df_prod.copy()
+            if not df_diarios_mo.empty:
+                df_d_obra = df_diarios_mo.copy()
+        else:
+            # Se for uma obra específica, filtra normalmente
+            nome_obra_padrao = obra_sel.replace('_', ' ').title()
+            if df_prod is not None and not df_prod.empty:
+                df_p_obra = df_prod[df_prod['OBRA'] == obra_sel]
+            if not df_diarios_mo.empty:
+                df_d_obra = df_diarios_mo[df_diarios_mo['nome_obra'] == nome_obra_padrao]
 
         st.sidebar.markdown("---")
-        st.sidebar.markdown("### Auditoria de Dados")
-        remover_outliers = st.sidebar.checkbox("Remover Picos Irreais (Outliers)")
-        st.sidebar.markdown("---")
-
-        if remover_outliers and not df_p_obra.empty and 'IP_D' in df_p_obra.columns:
-            Q1 = df_p_obra['IP_D'].quantile(0.25)
-            Q3 = df_p_obra['IP_D'].quantile(0.75)
-            IQR = Q3 - Q1
-            limite_superior = Q3 + 1.5 * IQR
-            df_p_obra = df_p_obra[df_p_obra['IP_D'] <= limite_superior]
-            st.warning(f"⚠️ Filtro Ativo: IPs > {limite_superior:.2f} removidos.")
 
         # --- MÉTRICAS ---
         c1, c2, c3 = st.columns(3)
@@ -154,13 +154,18 @@ if pagina_selecionada == "Dashboard Executivo":
         with col_a:
             st.subheader("Distribuição da Produtividade (Boxplot)")
             if not df_p_obra.empty and 'IP_D' in df_p_obra.columns:
+                
+                # Eixo dinâmico: Se "Todas as Obras", compara as obras. Senão, compara os serviços.
+                eixo_x = 'OBRA' if obra_sel == "Todas as Obras" else 'CLASSE_COMP'
+                titulo_x = 'Obra' if obra_sel == "Todas as Obras" else 'Classe de Serviço'
+                
                 fig1 = px.box(
                     df_p_obra, 
-                    x='CLASSE_COMP', 
+                    x=eixo_x, 
                     y='IP_D', 
-                    color='CLASSE_COMP', 
+                    color=eixo_x, 
                     points="outliers", 
-                    labels={'CLASSE_COMP': 'Classe de Serviço', 'IP_D': 'Índice de Produtividade (IP)'}
+                    labels={eixo_x: titulo_x, 'IP_D': 'Índice de Produtividade (IP)'}
                 )
                 fig1.update_layout(showlegend=False, margin=dict(l=40, r=20, t=30, b=80), height=450, xaxis_tickangle=-45)
                 st.plotly_chart(fig1, use_container_width=True, theme="streamlit")
@@ -170,13 +175,24 @@ if pagina_selecionada == "Dashboard Executivo":
         with col_b:
             st.subheader("Consumo de Mão de Obra (Horas)")
             if not df_d_obra.empty and 'insumo' in df_d_obra.columns and 'qntd' in df_d_obra.columns:
-                df_insumo = df_d_obra.groupby('insumo', as_index=False)['qntd'].sum().sort_values('qntd', ascending=False)
-                fig2 = px.bar(df_insumo, x='insumo', y='qntd', color='insumo')
-                fig2.update_layout(showlegend=False, xaxis_tickangle=-45)
+                
+                if obra_sel == "Todas as Obras":
+                    # Agrupa por Obra e Insumo para criar barras lado a lado (barmode='group')
+                    df_insumo = df_d_obra.groupby(['nome_obra', 'insumo'], as_index=False)['qntd'].sum()
+                    fig2 = px.bar(df_insumo, x='insumo', y='qntd', color='nome_obra', barmode='group',
+                                  labels={'insumo': 'Insumo', 'qntd': 'Horas', 'nome_obra': 'Obra'})
+                else:
+                    # Mantém o padrão original para 1 única obra
+                    df_insumo = df_d_obra.groupby('insumo', as_index=False)['qntd'].sum().sort_values('qntd', ascending=False)
+                    fig2 = px.bar(df_insumo, x='insumo', y='qntd', color='insumo',
+                                  labels={'insumo': 'Insumo', 'qntd': 'Horas'})
+                    
+                # Mostra a legenda apenas se estiver comparando todas as obras
+                mostrar_legenda = True if obra_sel == "Todas as Obras" else False
+                fig2.update_layout(showlegend=mostrar_legenda, xaxis_tickangle=-45)
                 st.plotly_chart(fig2, use_container_width=True, theme="streamlit")
             else:
                 st.info("Sem dados de diários (Excel) para gerar o gráfico de barras.")
-        st.divider()
 
         # --- INTELIGÊNCIA ANALÍTICA ---
         st.subheader("Inteligência Analítica e Consistência Global")
