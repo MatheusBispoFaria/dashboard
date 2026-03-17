@@ -135,8 +135,23 @@ if pagina_selecionada == "Dashboard Executivo":
                 df_p_obra = df_prod[df_prod['OBRA'] == obra_sel]
             if not df_diarios_mo.empty:
                 df_d_obra = df_diarios_mo[df_diarios_mo['nome_obra'] == nome_obra_padrao]
-
+            
+        # --- MÉTRICAS ---
+            st.sidebar.markdown("---")
+        
+        # --- AUDITORIA DE DADOS (FILTRO DE OUTLIERS) ---
+        st.sidebar.markdown("### Auditoria de Dados")
+        remover_outliers = st.sidebar.checkbox("Remover Picos Irreais (Outliers)")
         st.sidebar.markdown("---")
+ 
+        # Aplica a remoção matemática usando o limite superior do Boxplot (Q3 + 1.5 * IQR)
+        if remover_outliers and not df_p_obra.empty and 'IP_D' in df_p_obra.columns:
+            Q1 = df_p_obra['IP_D'].quantile(0.25)
+            Q3 = df_p_obra['IP_D'].quantile(0.75)
+            IQR = Q3 - Q1
+            limite_superior = Q3 + 1.5 * IQR
+            df_p_obra = df_p_obra[df_p_obra['IP_D'] <= limite_superior]
+            st.sidebar.warning(f"⚠️ Filtro Ativo: IPs > {limite_superior:.2f} removidos do cálculo.")
 
         # --- MÉTRICAS ---
         c1, c2, c3 = st.columns(3)
